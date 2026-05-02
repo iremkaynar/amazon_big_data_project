@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col
+from pyspark.sql.functions import from_json, col, count, countDistinct
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 
 # Spark oturumunu başlatıyoruz
@@ -13,7 +13,9 @@ schema = StructType([
     StructField("kullanici_ID", StringType(), True),
     StructField("olay_tipi", StringType(), True),
     StructField("ilgili_ID", StringType(), True),
-    StructField("kategori", StringType(), True)
+    StructField("kategori", StringType(), True),
+    StructField("star_rating", DoubleType(), True),
+    StructField("review_body", StringType(), True)
 ])
 
 # 2. KAFKA'DAN SÜREKLİ OKUMA
@@ -66,11 +68,15 @@ gold_df = cleaned_df.groupBy("kategori").agg(
     countDistinct("ilgili_ID").alias("unique_products")
 )
 
+
+def write_gold_batch(batch_df, batch_id):
+    batch_df.write.mode("overwrite").parquet("/tmp/parquet/gold_reviews")
+
+
 gold_query = gold_df.writeStream \
-    .format("parquet") \
     .outputMode("complete") \
     .option("checkpointLocation", "/tmp/checkpoints/amazon_reviews/gold") \
-    .option("path", "/tmp/parquet/gold_reviews") \
+    .foreachBatch(write_gold_batch) \
     .start()
 
 # Bronze, Silver ve Gold akışını başlat ve çalışmaya bırak.

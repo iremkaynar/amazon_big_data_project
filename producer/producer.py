@@ -53,7 +53,9 @@ def main():
             "kullanici_ID": str(row.get("customer_id", "BilinmeyenKullanici")),
             "olay_tipi": "review_posted",
             "ilgili_ID": str(row.get("product_id", "BilinmeyenUrun")),
-            "kategori": str(row.get("product_category", "BilinmeyenKategori"))
+            "kategori": str(row.get("product_category", "BilinmeyenKategori")),
+            "star_rating": int(row.get("star_rating", 0)),
+            "review_body": str(row.get("review_body", ""))
         }
 
         producer.send(args.topic, mesaj)

@@ -1,0 +1,10 @@
+FROM jupyter/pyspark-notebook:latest
+
+# PySpark ve Delta Lake bağımlılıklarını yükle
+RUN pip install --no-cache-dir \
+    pyspark==3.5.0 \
+    delta-spark==3.0.0 \
+    kafka-python \
+    pandas
+
+WORKDIR /home/jovyan
