@@ -58,5 +58,20 @@ silver_query = cleaned_df.writeStream \
     .option("path", "/tmp/parquet/silver_reviews") \
     .start()
 
-# Bronze ve Silver akışını başlat ve çalışmaya bırak.
+# 5. GOLD KATMANI
+# Silver verisinden kategori bazlı özet istatistikler (agrege veriler)
+gold_df = cleaned_df.groupBy("kategori").agg(
+    count("*").alias("review_count"),
+    countDistinct("kullanici_ID").alias("unique_users"),
+    countDistinct("ilgili_ID").alias("unique_products")
+)
+
+gold_query = gold_df.writeStream \
+    .format("parquet") \
+    .outputMode("complete") \
+    .option("checkpointLocation", "/tmp/checkpoints/amazon_reviews/gold") \
+    .option("path", "/tmp/parquet/gold_reviews") \
+    .start()
+
+# Bronze, Silver ve Gold akışını başlat ve çalışmaya bırak.
 spark.streams.awaitAnyTermination()
