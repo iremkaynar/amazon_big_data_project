@@ -21,10 +21,17 @@ services:
       - zookeeper
 
   spark:
-    image: apache/spark:latest
+    image: jupyter/pyspark-notebook:latest
     ports:
-      - "8080:8080"
       - "8888:8888"
+      - "4040:4040"
+    volumes:
+      - ./notebooks:/home/jovyan/notebooks
+      - ./spark_streaming:/home/jovyan/spark_streaming
+      - ./data:/home/jovyan/data
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+    command: start-notebook.sh --NotebookApp.token=''
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:latest

@@ -5,8 +5,6 @@ from pyspark.sql.types import StructType, StructField, StringType, DoubleType
 # Spark oturumunu başlatıyoruz
 spark = SparkSession.builder \
     .appName("AmazonReviewsStreaming") \
-    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
-    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
     .getOrCreate()
 
 # 1. ŞEMA (SCHEMA) TANIMLAMA
@@ -18,25 +16,47 @@ schema = StructType([
     StructField("kategori", StringType(), True)
 ])
 
-# 2. KAFKA'DAN SÜREKLİ OKUMA (AUTO LOADER MANTIĞI)
-df = spark.readStream \
+# 2. KAFKA'DAN SÜREKLİ OKUMA
+# Docker container'ında kafka service'e docker network adıyla bağlanıyoruz
+kafka_df = spark.readStream \
     .format("kafka") \
-    .option("kafka.bootstrap.servers", "localhost:9092") \
+    .option("kafka.bootstrap.servers", "kafka:29092") \
     .option("subscribe", "amazon_reviews_topic") \
     .option("startingOffsets", "earliest") \
     .load()
 
-# Gelen karmaşık veriyi JSON şemamızla okunabilir hale getiriyoruz
-parsed_df = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*")
+# 3. BRONZE KATMANI
+# Ham mesajı olduğu gibi Parquet'e yazıyoruz. Bu katman denetim ve geri izleme için kullanılır.
+bronze_df = kafka_df.select(
+    col("topic"),
+    col("partition"),
+    col("offset"),
+    col("timestamp").alias("kafka_timestamp"),
+    col("key").cast("string").alias("key"),
+    col("value").cast("string").alias("raw_json")
+)
 
-# Proje yönergesine göre veri temizleme (Null değerleri ve duplike kayıtları atıyoruz)
+bronze_query = bronze_df.writeStream \
+    .format("parquet") \
+    .outputMode("append") \
+    .option("checkpointLocation", "/tmp/checkpoints/amazon_reviews/bronze") \
+    .option("path", "/tmp/parquet/bronze_reviews") \
+    .start()
+
+# 4. SILVER KATMANI
+# Gelen JSON veriyi schema ile parse edip temizliyoruz.
+parsed_df = kafka_df.select(
+    from_json(col("value").cast("string"), schema).alias("data")
+).select("data.*")
+
 cleaned_df = parsed_df.dropna().dropDuplicates(["kullanici_ID", "ilgili_ID", "timestamp"])
 
-# 3. CHECKPOINT İLE DELTA LAKE'E YAZMA (SILVER LAYER)
-query = cleaned_df.writeStream \
-    .format("delta") \
+silver_query = cleaned_df.writeStream \
+    .format("parquet") \
     .outputMode("append") \
-    .option("checkpointLocation", "/tmp/checkpoints/amazon_reviews") \
-    .start("/tmp/delta/silver_reviews")
+    .option("checkpointLocation", "/tmp/checkpoints/amazon_reviews/silver") \
+    .option("path", "/tmp/parquet/silver_reviews") \
+    .start()
 
-query.awaitTermination()
+# Bronze ve Silver akışını başlat ve çalışmaya bırak.
+spark.streams.awaitAnyTermination()
