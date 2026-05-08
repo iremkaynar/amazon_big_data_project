@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, count, countDistinct, approx_count_distinct
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 # Spark oturumunu başlatıyoruz
 spark = SparkSession.builder \
@@ -15,7 +15,9 @@ schema = StructType([
     StructField("ilgili_ID", StringType(), True),
     StructField("kategori", StringType(), True),
     StructField("star_rating", DoubleType(), True),
-    StructField("review_body", StringType(), True)
+    StructField("review_body", StringType(), True),
+    StructField("review_headline", StringType(), True),
+    StructField("helpful_votes", IntegerType(), True)
 ])
 
 # 2. KAFKA'DAN SÜREKLİ OKUMA
