@@ -33,7 +33,7 @@ def main():
 
     # Read CSV
     file_electronics = "data/amazon_reviews_us_Electronics_v1_00_sample.csv"
-    file_videogames = "data/amazon_reviews_us_Video_Games_v1_00_sample.csv"
+    file_videogames = "data/amazon_reviews_us_Digital_Video_Games_v1_00_sample.csv"
 
     # İkisini de oku
     df_elec = pd.read_csv(file_electronics)
