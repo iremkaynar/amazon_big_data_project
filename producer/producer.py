@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 def main():
     parser = argparse.ArgumentParser(description="Kafka producer for streaming CSV rows as JSON")
     parser.add_argument("--rate", type=int, help="messages per second (overrides MESSAGE_PER_SEC env)")
-    parser.add_argument("--bootstrap", default=os.getenv("KAFKA_BOOTSTRAP", "localhost:29092"),
+    parser.add_argument("--bootstrap", default=os.getenv("KAFKA_BOOTSTRAP", "kafka:29092"),
                         help="Kafka bootstrap servers (host:port)")
     parser.add_argument("--topic", default=os.getenv("KAFKA_TOPIC", "amazon_reviews_topic"),
                         help="Kafka topic to send messages to")
