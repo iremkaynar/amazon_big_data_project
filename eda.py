@@ -6,6 +6,8 @@ from datetime import datetime
 # Spark oturumu
 spark = SparkSession.builder.appName("EDA").getOrCreate()
 
+spark.sparkContext.setLogLevel("ERROR")
+
 print("\n" + "="*80)
 print("KEŞIFSEL VERİ ANALİZİ (EDA) - Silver Katmanı")
 print("="*80 + "\n")
