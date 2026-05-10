@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import from_json, col, count, countDistinct
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType
+from pyspark.sql.functions import from_json, col, count, countDistinct, approx_count_distinct
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 # Spark oturumunu başlatıyoruz
 spark = SparkSession.builder \
@@ -15,7 +15,9 @@ schema = StructType([
     StructField("ilgili_ID", StringType(), True),
     StructField("kategori", StringType(), True),
     StructField("star_rating", DoubleType(), True),
-    StructField("review_body", StringType(), True)
+    StructField("review_body", StringType(), True),
+    StructField("review_headline", StringType(), True),
+    StructField("helpful_votes", IntegerType(), True)
 ])
 
 # 2. KAFKA'DAN SÜREKLİ OKUMA
@@ -64,10 +66,9 @@ silver_query = cleaned_df.writeStream \
 # Silver verisinden kategori bazlı özet istatistikler (agrege veriler)
 gold_df = cleaned_df.groupBy("kategori").agg(
     count("*").alias("review_count"),
-    countDistinct("kullanici_ID").alias("unique_users"),
-    countDistinct("ilgili_ID").alias("unique_products")
+    approx_count_distinct("kullanici_ID").alias("unique_users"), 
+    approx_count_distinct("ilgili_ID").alias("unique_products")
 )
-
 
 def write_gold_batch(batch_df, batch_id):
     batch_df.write.mode("overwrite").parquet("/tmp/parquet/gold_reviews")

@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 def main():
     parser = argparse.ArgumentParser(description="Kafka producer for streaming CSV rows as JSON")
     parser.add_argument("--rate", type=int, help="messages per second (overrides MESSAGE_PER_SEC env)")
-    parser.add_argument("--bootstrap", default=os.getenv("KAFKA_BOOTSTRAP", "localhost:9092"),
+    parser.add_argument("--bootstrap", default=os.getenv("KAFKA_BOOTSTRAP", "kafka:29092"),
                         help="Kafka bootstrap servers (host:port)")
     parser.add_argument("--topic", default=os.getenv("KAFKA_TOPIC", "amazon_reviews_topic"),
                         help="Kafka topic to send messages to")
@@ -32,7 +32,19 @@ def main():
     )
 
     # Read CSV
-    df = pd.read_csv("data/amazon_reviews_us_Electronics_v1_00_sample.csv")
+    file_electronics = "data/amazon_reviews_us_Electronics_v1_00_sample.csv"
+    file_videogames = "data/amazon_reviews_us_Digital_Video_Games_v1_00_sample.csv"
+
+    # İkisini de oku
+    df_elec = pd.read_csv(file_electronics)
+    df_vg = pd.read_csv(file_videogames)
+
+    # Alt alta birleştir
+    df = pd.concat([df_elec, df_vg], ignore_index=True)
+
+    # Karıştır (Verilerin kategoriler arası karışık gitmesi model eğitimi için daha sağlıklıdır)
+    df = df.sample(frac=1).reset_index(drop=True)
+    
 
     sent = 0
 
@@ -55,7 +67,9 @@ def main():
             "ilgili_ID": str(row.get("product_id", "BilinmeyenUrun")),
             "kategori": str(row.get("product_category", "BilinmeyenKategori")),
             "star_rating": int(row.get("star_rating", 0)),
-            "review_body": str(row.get("review_body", ""))
+            "review_body": str(row.get("review_body", "")),
+            "review_headline": str(row.get("review_headline", "")),
+            "helpful_votes": int(row.get("helpful_votes", 0))
         }
 
         producer.send(args.topic, mesaj)
