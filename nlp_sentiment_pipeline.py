@@ -45,11 +45,15 @@ spark = SparkSession.builder \
 # ========================
 # 1. VERILER OKUNUR
 # ========================
+
+
+# 1. VERILER OKUNUR
 logger.info("Silver katmanından veriler okunuyor...")
 silver_path = "/tmp/parquet/silver_reviews"
-silver_df = spark.read.parquet(silver_path)
+silver_df = spark.read.parquet(silver_path).limit(500).cache()
 
 logger.info(f"Silver veri: {silver_df.count()} satır")
+
 
 # ========================
 # 2. SENTIMENT ANALIZI FONKSİYONU
