@@ -6,7 +6,7 @@ VADER Sentiment Analyzer kullanarak duygu skorları çıkarır.
 
 Çıktı:
 - Feature Store'a (Delta Lake) sentiment score, sentiment_label ile birlikte yazılır
-- Arkadaşınız bu feature'ları ML modeline input olarak kullanabilir
+- Bu feature'lar, ML modeline input olarak kullanabilir
 
 Aşamalar:
 1. Silver Parquet'i oku (temizlenmiş veriler)
@@ -34,27 +34,27 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Spark oturumunu başlat - Delta Lake desteği ile
+# Spark oturumunu 5GB WSL limitine göre optimize et
 spark = SparkSession.builder \
     .appName("NLPSentimentPipeline") \
+    .config("spark.driver.memory", "1536m") \
+    .config("spark.executor.memory", "1536m") \
     .config("spark.jars.packages", "io.delta:delta-spark_2.12:3.1.0") \
     .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
     .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+    .config("spark.sql.shuffle.partitions", "8") \
     .getOrCreate()
 # ========================
 # 1. VERILER OKUNUR
 # ========================
-
-
-# 1. VERILER OKUNUR
 logger.info("Silver katmanından veriler okunuyor...")
 silver_path = "/tmp/parquet/silver_reviews"
-silver_df = spark.read.parquet(silver_path).limit(500).cache()
 
-logger.info(f"Silver veri: {silver_df.count()} satır")
+#Spark veriyi lazy (tembel) okusun.
+silver_df = spark.read.parquet(silver_path)
 
-
+# .count() işlemi JVM'i baştan yormaması için yoruma alındı.
+# logger.info(f"Silver veri: {silver_df.count()} satır")
 # ========================
 # 2. SENTIMENT ANALIZI FONKSİYONU
 # ========================
@@ -104,6 +104,10 @@ df_with_sentiment = silver_df.withColumn(
     "sentiment_label", sentiment_label_udf(col("sentiment_score"))
 )
 
+# YENİ EKLENEN KISIM: Ağır NLP işlemlerinin tekrar tekrar çalışmasını engellemek için DataFrame'i önbelleğe al (Cache).
+# count() işlemi cache'lemeyi anında tetiklemek için zorunludur.
+df_with_sentiment.cache()
+logger.info(f"Sentiment hesaplandı ve önbelleğe alındı. Toplam satır: {df_with_sentiment.count()}")
 # ========================
 # 4. TARİH VE ZAMAN FEATURESİ EKLE
 # ========================
@@ -180,16 +184,17 @@ feature_df_final = feature_df.select(
     "day_review_count",
     "hour_review_count",
 )
-
 # ========================
 # 7. FEATURE STORE'A YAZDIR (DELTA LAKE)
 # ========================
 logger.info("Feature Store'a yazılıyor...")
-feature_path = "/tmp/delta/features/review_features_with_sentiment"
 
-feature_df_final.write.format("delta").mode("overwrite").save(feature_path)
+feature_path = "/home/jovyan/data/gold_sentiment_analysis"
 
-logger.info(f"✅ Feature tablosu yazıldı: {feature_path}")
+# YENİ EKLENEN KISIM: Yazmadan önce repartition ile task'leri dağıt
+feature_df_final.repartition(8).write.format("delta").mode("overwrite").save(feature_path)
+
+logger.info(f"Feature tablosu yazıldı: {feature_path}")
 logger.info(f"   Toplam satır: {feature_df_final.count()}")
 
 # ========================
@@ -197,19 +202,21 @@ logger.info(f"   Toplam satır: {feature_df_final.count()}")
 # ========================
 logger.info("\n=== SENTIMENT ANALIZI ÖZETI ===")
 feature_df_final.groupBy("sentiment_label").count().show()
+from pyspark.sql import functions as F
 
 logger.info("\n=== SENTIMENT SCORE ISTATISTIKLERI ===")
-feature_df_final.agg(
-    {"sentiment_score": ["min", "max", "avg"]}
+feature_df_final.select(
+    F.min("sentiment_score").alias("min_score"),
+    F.max("sentiment_score").alias("max_score"),
+    F.avg("sentiment_score").alias("avg_score")
 ).show()
-
 logger.info("\n=== SCHEMA ===")
 feature_df_final.printSchema()
 
 logger.info("\n=== İLK 5 KAYIT ===")
 feature_df_final.show(5, truncate=False)
 
-logger.info("\n🎉 NLP Sentiment Pipeline tamamlandı!")
+logger.info("\nNLP Sentiment Pipeline tamamlandı!")
 logger.info("Çıktı: Feature Store'da 'review_features_with_sentiment'")
 logger.info("ML modeliniz bu feature'ları kullanabilir:")
 logger.info("  - sentiment_score: 0-1 arası duygu puanı")
