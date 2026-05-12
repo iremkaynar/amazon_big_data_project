@@ -1,10 +1,13 @@
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col, count, countDistinct, approx_count_distinct
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
-# Spark oturumunu başlatıyoruz
+# Spark oturumunu daha yüksek RAM limitiyle başlatıyoruz
 spark = SparkSession.builder \
     .appName("AmazonReviewsStreaming") \
+    .config("spark.jars.packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0") \
+    .config("spark.driver.memory", "4g") \
+    .config("spark.executor.memory", "4g") \
     .getOrCreate()
 
 # 1. ŞEMA (SCHEMA) TANIMLAMA
@@ -15,7 +18,9 @@ schema = StructType([
     StructField("ilgili_ID", StringType(), True),
     StructField("kategori", StringType(), True),
     StructField("star_rating", DoubleType(), True),
-    StructField("review_body", StringType(), True)
+    StructField("review_body", StringType(), True),
+    StructField("review_headline", StringType(), True),
+    StructField("helpful_votes", IntegerType(), True)
 ])
 
 # 2. KAFKA'DAN SÜREKLİ OKUMA
